@@ -4,7 +4,7 @@ import requests
 from babel.numbers import format_currency
 
 # Configuração inicial do Streamlit
-st.set_page_config(page_title='Dashboard de Contas', layout='wide')
+st.set_page_config(page_title='Dash Vendas de Parceiros', layout='wide')
 st.markdown("<h1 style='color: #5D3A7A;'>📊 Dashboard de Contas</h1>", unsafe_allow_html=True)
 
 # Função para buscar dados da API com cache
@@ -129,3 +129,5 @@ if not data.empty:
                 <h3 style="color: #A67DB8;">🔹 {perc_servico_geral:.2f}%</h3>
             </div>
         """, unsafe_allow_html=True)
+
+
