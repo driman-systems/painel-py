@@ -7,23 +7,28 @@ import plotly.express as px
 
 # Configuração inicial do Streamlit
 st.set_page_config(page_title='Dashboard Vendas Por Categorias', layout='wide')
-st.markdown("<h1 style='color: #5D3A7A; text-align: center;'>📊 Dashboard Vendas Por Categoria</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='color: #5D3A7A; text-align: center; font-size: 26px'>📊 Dashboard Vendas Por Categoria</h1>", unsafe_allow_html=True)
 
 # Função para buscar dados da API com cache
-@st.cache_data
-def get_data():
-    url = "http://192.168.10.11:5005/contas"  # Substituir pela sua API real
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        return pd.DataFrame(data)
-    except requests.exceptions.RequestException as e:
-        st.error(f"❌ Erro ao buscar os dados: {e}")
-        return pd.DataFrame()
+
+if "dados" not in st.session_state:
+    @st.cache_data
+    def get_data():
+        url = "http://192.168.10.11:5005/contas"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json()
+            return pd.DataFrame(data)
+        except requests.exceptions.RequestException as e:
+            st.error(f"❌ Erro ao buscar os dados: {e}")
+            return pd.DataFrame()
 
 # Carregar os dados
-data = get_data()
+if "dados" in st.session_state:
+    data = st.session_state['dados']
+else:
+    data = get_data()
 
 if not data.empty:
     # Conversão de colunas para evitar erros
@@ -53,13 +58,11 @@ if not data.empty:
     opcoes_categoria = ["Todos"] + list(data["Categoria"].unique())
 
     # --- 🎯 Filtros Interativos ---
-    with st.expander("🔍 **Filtros**", expanded=True):
-        col1, col2, col3, col4 = st.columns(4)
 
-        empresas_selecionadas = col1.multiselect("Empresa", options=opcoes_empresa, default=["Todos"])
-        anos_selecionados = col2.multiselect("Ano", options=opcoes_ano, default=[ano_atual])
-        meses_selecionados = col3.multiselect("Mês", options=opcoes_mes, default=[mes_atual])
-        categorias_selecionadas = col4.multiselect("Categoria", options=opcoes_categoria, default=["Todos"])
+    empresas_selecionadas = st.sidebar.multiselect("Empresa", options=opcoes_empresa, default=["Todos"])
+    anos_selecionados = st.sidebar.multiselect("Ano", options=opcoes_ano, default=[ano_atual])
+    meses_selecionados = st.sidebar.multiselect("Mês", options=opcoes_mes, default=[mes_atual])
+    categorias_selecionadas = st.sidebar.multiselect("Categoria", options=opcoes_categoria, default=["Todos"])
 
     # --- 🔍 Aplicar Filtros nos Dados ---
     df_filtrado = data.copy()
