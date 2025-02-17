@@ -209,9 +209,6 @@ if not data.empty:
     )
 
 
-import streamlit as st
-import pandas as pd
-from babel.numbers import format_currency
 
 # Caminho do arquivo de metas
 file_path = "C:/Arquivos Python/Projetos/painel-py/Metas_Ajustadas_Sem_Domingos_Gatzz.xlsx"
@@ -298,3 +295,25 @@ else:
     st.dataframe(
         tabela_comparativa.style.format("{:.0f}").applymap(highlight, subset=[col for col in tabela_comparativa.columns if '% Alcance' in col])
     )
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+   
+metas_diarias = metas_diarias[metas_diarias['Categoria'].isin(categorias_principais)]
+
+# Criar a tabela de metas diárias (pivot) - QUANTIDADE
+
+
