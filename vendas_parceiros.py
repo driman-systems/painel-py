@@ -90,7 +90,7 @@ if not data.empty:
     if 'Todos' not in dia_filtro:
         data = data[data['Dia'].isin(dia_filtro)]
 
-    total_geral = data[data['Categoria'].isin(todas_categorias)]['TotalLiq'].sum()
+    total_geral = data[data['Categoria'].isin(todas_categorias)][['TotalLiq', 'servico']].sum().sum()
 
     st.markdown(f"""
         <div style="background-color: #D6C2E9; padding: 15px; border-radius: 10px; text-align: center;">
@@ -105,20 +105,20 @@ if not data.empty:
 
 for i, categoria_principal in enumerate(categorias_principais):
     contas_relacionadas = data[data['conta'].isin(data[data['Categoria'] == categoria_principal]['conta'].unique())]
-    valor_principal = (
-        data[data['conta'].isin(contas_relacionadas['conta'].unique())]['TotalLiq'].sum()
-    )
+    valor_liquido_principal = contas_relacionadas['TotalLiq'].sum()
+    valor_servico_principal = contas_relacionadas['servico'].sum()
+    valor_principal = valor_liquido_principal + valor_servico_principal
     perc_valor_principal = (valor_principal / total_geral * 100) if total_geral > 0 else 0
 
     # Filtrar apenas as contas que têm a categoria principal para o cálculo do ticket médio
     contas_categoria_principal = data[data['Categoria'] == categoria_principal]
     valor_categoria_principal = contas_categoria_principal['TotalLiq'].sum()
     qtd_categoria_principal = contas_categoria_principal['QTD'].sum()
-    ticket_medio = valor_categoria_principal / qtd_categoria_principal if qtd_categoria_principal > 0 else 0
+    ticket_medio = valor_principal / qtd_categoria_principal if qtd_categoria_principal > 0 else 0
 
     perc_categoria_principal = (valor_categoria_principal / valor_principal * 100) if valor_principal > 0 else 0
     servico_total = contas_relacionadas['servico'].sum()
-    perc_servico = (servico_total / valor_principal * 100) if valor_principal > 0 else 0
+    perc_servico = (servico_total / valor_liquido_principal * 100) if valor_principal > 0 else 0
 
     subcategorias = contas_relacionadas[contas_relacionadas['Categoria'].isin(categorias_secundarias)]
     subcategorias_agrupadas = subcategorias.groupby('Categoria')['TotalLiq'].sum().to_dict()
@@ -127,7 +127,7 @@ for i, categoria_principal in enumerate(categorias_principais):
         st.subheader(f"**{categoria_principal}**")
 
         # Exibir Ticket Médio acima do valor principal
-        st.markdown(f"<p style='font-size: 18px; margin-bottom: -5px;'>🪙 Tk md: {format_currency(ticket_medio, 'BRL', locale='pt_BR')}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size: 16px; margin-bottom: -5px;'>🪙 <b>Ticket Médio:</b> {format_currency(ticket_medio, 'BRL', locale='pt_BR')}</p>", unsafe_allow_html=True)
 
         st.markdown(f"<h4 style='color: #A67DB8; margin-bottom: -5px;'>{format_currency(valor_principal, 'BRL', locale='pt_BR')}</h4>", unsafe_allow_html=True)
         st.markdown(f"<p style='font-size: 12px; margin-top: -5px;'><span style='font-size: 5px;'>🟣</span> {perc_valor_principal:.2f}%</p>", unsafe_allow_html=True)
@@ -196,25 +196,25 @@ tabela_realizado = data_filtrado.pivot_table(
         margins_name='Total'
     ).fillna(0)
 
-    
-# Adicionar linha e coluna de total
-tabela_realizado.loc['Total'] = tabela_realizado.sum(numeric_only=True)
-tabela_realizado['Total'] = tabela_realizado.sum(axis=1, numeric_only=True)
+if not tabela_realizado.empty:
+    # Adicionar linha e coluna de total
+    colunas_numericas = tabela_realizado.select_dtypes(include='number').columns
+    tabela_realizado[colunas_numericas] = tabela_realizado[colunas_numericas].map(format_milhar)
 
-colunas_numericas = tabela_realizado.select_dtypes(include='number').columns
-tabela_realizado[colunas_numericas] = tabela_realizado[colunas_numericas].map(format_milhar)
+    st.markdown("<h1 style='color: #5D3A7A; font-size: 32px; text-align: center; margin-top: 30px;'>📊 Realizado por dia (Pax)</h1>", unsafe_allow_html=True)
 
-st.markdown("<h1 style='color: #5D3A7A; font-size: 32px; text-align: center; margin-top: 30px;'>📊 Realizado por dia (Pax)</h1>", unsafe_allow_html=True)
 
-st.dataframe(
-    tabela_realizado.style.map(
-        highlight_totals,
-        subset=pd.IndexSlice[['Total'], :]
-    ).map(
-        highlight_totals,
-        subset=pd.IndexSlice[:, ['Total']]
+    st.dataframe(
+        tabela_realizado.style.map(
+            highlight_totals,
+            subset=pd.IndexSlice[['Total'], :]
+        ).map(
+            highlight_totals,
+            subset=pd.IndexSlice[:, ['Total']]
+        )
     )
-)
+else:
+    st.warning("Nenhum dado disponível para exibir.")
 
 ####################################   REALIZADO POR DIA (VALOR LÍQUIDO)  ############################################################
 
@@ -229,24 +229,25 @@ tabela_realizado_valor = data_filtrado.pivot_table(
     margins_name='Total'
 ).fillna(0)
 
-tabela_realizado_valor.loc['Total'] = tabela_realizado_valor.sum(numeric_only=True)
-tabela_realizado_valor['Total'] = tabela_realizado_valor.sum(axis=1, numeric_only=True)
+if not tabela_realizado_valor.empty:
+    # Aplicando formatação de milhar
+    colunas_numericas_valor = tabela_realizado_valor.select_dtypes(include='number').columns
+    tabela_realizado_valor[colunas_numericas_valor] = tabela_realizado_valor[colunas_numericas_valor].map(format_moeda)
 
-# Aplicando formatação de milhar
-colunas_numericas_valor = tabela_realizado_valor.select_dtypes(include='number').columns
-tabela_realizado_valor[colunas_numericas_valor] = tabela_realizado_valor[colunas_numericas_valor].map(format_moeda)
+    st.markdown("<h1 style='color: #5D3A7A; font-size: 32px; text-align: center; margin-top: 30px;'>📊 Realizado por dia (Valor Líquido)</h1>", unsafe_allow_html=True)
 
-st.markdown("<h1 style='color: #5D3A7A; font-size: 32px; text-align: center; margin-top: 30px;'>📊 Realizado por dia (Valor Líquido)</h1>", unsafe_allow_html=True)
 
-st.dataframe(
-    tabela_realizado_valor.style.map(
-        highlight_totals,
-        subset=pd.IndexSlice[['Total'], :]
-    ).map(
-        highlight_totals,
-        subset=pd.IndexSlice[:, ['Total']]
+    st.dataframe(
+        tabela_realizado_valor.style.map(
+            highlight_totals,
+            subset=pd.IndexSlice[['Total'], :]
+        ).map(
+            highlight_totals,
+            subset=pd.IndexSlice[:, ['Total']]
+        )
     )
-)
+else:
+    st.warning("Nenhum dado disponível para exibir.")
 
 ############################### METAS DIARIAS X QUANTIDADE REALIZADA #####################################################
 
@@ -271,7 +272,7 @@ tabela_realizado_qtd = data_filtrado.pivot_table(
     aggfunc='sum'
 ).fillna(0)
 
-# Alinhar as tabelas (caso tenha dias em uma e não na outra)
+
 dias_comuns = sorted(set(tabela_metas_diarias_qtd.columns) | set(tabela_realizado_qtd.columns))
 tabela_metas_diarias_qtd = tabela_metas_diarias_qtd.reindex(columns=dias_comuns, fill_value=0)
 tabela_realizado_qtd = tabela_realizado_qtd.reindex(columns=dias_comuns, fill_value=0)
@@ -311,20 +312,24 @@ for dia in dias_comuns:
     tabela_comparativa[(dia, 'Realizado')] = tabela_comparativa[(dia, 'Realizado')].apply(format_milhar_sem_zero)
     tabela_comparativa[(dia, '%')] = tabela_comparativa[(dia, '%')].apply(format_percentual)
 
-# Melhorar exibição do cabeçalho
-tabela_comparativa.columns = pd.MultiIndex.from_tuples(
-    [(f"Dia {dia}", nome) for dia, nome in tabela_comparativa.columns]
-)
-
-# Exibir Tabela Final
-st.markdown("<h1 style='color: #5D3A7A; font-size: 24px; text-align: center; margin-top: 20px;'>📊 Metas Diárias x Realizado</h1>", unsafe_allow_html=True)
-
-# Identificar colunas de % Alcance
-subset_percentual = [(f"Dia {dia}", '%') for dia in dias_comuns]
-
-st.dataframe(
-    tabela_comparativa.style.map(
-        colorir_percentual_texto,
-        subset=pd.IndexSlice[:, subset_percentual]
+if not tabela_comparativa.empty:
+    # Melhorar exibição do cabeçalho
+    tabela_comparativa.columns = pd.MultiIndex.from_tuples(
+        [(f"Dia {dia}", nome) for dia, nome in tabela_comparativa.columns]
     )
-)
+
+    # Exibir Tabela Final
+    st.markdown("<h1 style='color: #5D3A7A; font-size: 32px; text-align: center; margin-top: 20px;'>📊 Metas Diárias x Realizado</h1>", unsafe_allow_html=True)
+
+    # Identificar colunas de % Alcance
+    subset_percentual = [(f"Dia {dia}", '%') for dia in dias_comuns]
+
+    st.dataframe(
+        tabela_comparativa.style.map(
+            colorir_percentual_texto,
+            subset=pd.IndexSlice[:, subset_percentual]
+        )
+    )
+else:
+    st.warning("Nenhum dado disponível para exibir.")
+
