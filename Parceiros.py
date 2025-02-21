@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from babel.numbers import format_currency
-
+from datetime import datetime
 
 st.set_page_config(page_title='Dash Vendas de Parceiros', layout='wide')
 
@@ -44,6 +44,15 @@ def colorir_percentual_texto(val):
         pass
     return ''
 
+def formata_brasil(x):
+    # Se x não for numérico, apenas retorna como string
+    if pd.isnull(x):
+        return "0"
+    # Garante inteiro (ou arredonda)
+    val_int = int(round(x))
+    # Formata com vírgula como separador de milhar e depois troca "," por "."
+    return f"{val_int:,}".replace(",", ".")
+
 st.markdown("<h1 style='color: #5D3A7A; font-size: 32px; text-align: center;'>📊 Dashboard de Contas</h1>", unsafe_allow_html=True)
 
 
@@ -64,6 +73,8 @@ data = get_data()
 st.session_state['dados'] = data
 
 if not data.empty:
+    ano_atual = datetime.now().year
+    mes_atual_num = datetime.now().month
     data['conta'] = data['conta'].astype(str)
     categorias_principais = ['Venda própria', 'Laçador', 'Tche', 'Prime']
     categorias_secundarias = ['Bebidas', 'Souvenir', 'Cozinha', 'Extras']
@@ -75,10 +86,12 @@ if not data.empty:
     data['Mes_Extenso'] = data['Mes'].map(meses_dict)
     meses = ['Todos'] + list(meses_dict.values())
     dias = ['Todos'] + sorted(data['Dia'].unique().tolist())
+    mes_atual_str = meses_dict[mes_atual_num]
+    mes_atual = [mes_atual_str] if mes_atual_str in meses else ['Todos']
 
     empresa_filtro = st.sidebar.multiselect("Empresa", empresas, default=['Todos'])
-    ano_filtro = st.sidebar.multiselect("Ano", anos, default=['Todos'])
-    mes_filtro = st.sidebar.multiselect("Mês", meses, default=['Todos'])
+    ano_filtro = st.sidebar.multiselect("Ano", anos, default=[ano_atual])
+    mes_filtro = st.sidebar.multiselect("Mês", meses, default=mes_atual)
     dia_filtro = st.sidebar.multiselect("Dia", dias, default=['Todos'])
 
     if 'Todos' not in empresa_filtro:
@@ -94,8 +107,8 @@ if not data.empty:
 
     st.markdown(f"""
         <div style="background-color: #D6C2E9; padding: 15px; border-radius: 10px; text-align: center;">
-            <h4 style="color: #5D3A7A; margin-bottom: -5px;">Total Geral Vouchers + Contas
-            <h3 style="color: #5D3A7A;">💰 {format_currency(total_geral, 'BRL', locale='pt_BR')}</h3></h4>
+            <h3 style="color: #5D3A7A; margin-bottom: -5px;">Total Geral Vouchers + Contas
+            <h2 style="color: #5D3A7A;">💰 R$ {formata_brasil(total_geral)}</h2></h3>
         </div>
     """, unsafe_allow_html=True)
     
@@ -106,8 +119,8 @@ if not data.empty:
 for i, categoria_principal in enumerate(categorias_principais):
     contas_relacionadas = data[data['conta'].isin(data[data['Categoria'] == categoria_principal]['conta'].unique())]
     valor_liquido_principal = contas_relacionadas['TotalLiq'].sum()
-    valor_servico_principal = contas_relacionadas['servico'].sum()
-    valor_principal = valor_liquido_principal + valor_servico_principal
+    servico_principal = contas_relacionadas['servico'].sum()
+    valor_principal = valor_liquido_principal + servico_principal
     perc_valor_principal = (valor_principal / total_geral * 100) if total_geral > 0 else 0
 
     # Filtrar apenas as contas que têm a categoria principal para o cálculo do ticket médio
@@ -115,10 +128,10 @@ for i, categoria_principal in enumerate(categorias_principais):
     valor_categoria_principal = contas_categoria_principal['TotalLiq'].sum()
     qtd_categoria_principal = contas_categoria_principal['QTD'].sum()
     ticket_medio = valor_principal / qtd_categoria_principal if qtd_categoria_principal > 0 else 0
-
+    preco_medio = valor_categoria_principal / qtd_categoria_principal if qtd_categoria_principal > 0 else 0
+    
     perc_categoria_principal = (valor_categoria_principal / valor_principal * 100) if valor_principal > 0 else 0
-    servico_total = contas_relacionadas['servico'].sum()
-    perc_servico = (servico_total / valor_liquido_principal * 100) if valor_principal > 0 else 0
+    perc_servico = (servico_principal / valor_liquido_principal * 100) if valor_principal > 0 else 0
 
     subcategorias = contas_relacionadas[contas_relacionadas['Categoria'].isin(categorias_secundarias)]
     subcategorias_agrupadas = subcategorias.groupby('Categoria')['TotalLiq'].sum().to_dict()
@@ -127,16 +140,17 @@ for i, categoria_principal in enumerate(categorias_principais):
         st.subheader(f"**{categoria_principal}**")
 
         # Exibir Ticket Médio acima do valor principal
-        st.markdown(f"<p style='font-size: 16px; margin-bottom: -5px;'>🪙 <b>Ticket Médio:</b> {format_currency(ticket_medio, 'BRL', locale='pt_BR')}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size: 14px; margin-bottom: -5px;'>🪙<b>Ticket Médio:</b> {format_currency(ticket_medio, 'BRL', locale='pt_BR')}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size: 14px; margin-bottom: -5px;'>💷<b>Preço Médio:</b> {format_currency(preco_medio, 'BRL', locale='pt_BR')}</p>", unsafe_allow_html=True)
 
-        st.markdown(f"<h4 style='color: #A67DB8; margin-bottom: -5px;'>{format_currency(valor_principal, 'BRL', locale='pt_BR')}</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='color: #A67DB8; margin-bottom: -5px;'>{formata_brasil(valor_principal)}</h4>", unsafe_allow_html=True)
         st.markdown(f"<p style='font-size: 12px; margin-top: -5px;'><span style='font-size: 5px;'>🟣</span> {perc_valor_principal:.2f}%</p>", unsafe_allow_html=True)
         
         # Rodízio
         st.markdown(bloco_categoria("Rodízio", valor_categoria_principal, perc_categoria_principal), unsafe_allow_html=True)
 
         # Serviço
-        st.markdown(bloco_categoria("Serviço", servico_total, perc_servico), unsafe_allow_html=True)
+        st.markdown(bloco_categoria("Serviço", servico_principal, perc_servico), unsafe_allow_html=True)
 
         # Subcategorias
         for subcategoria, valor in subcategorias_agrupadas.items():
@@ -196,6 +210,8 @@ tabela_realizado = data_filtrado.pivot_table(
         margins_name='Total'
     ).fillna(0)
 
+tabela_realizado.columns = tabela_realizado.columns.map(str)
+
 if not tabela_realizado.empty:
     # Adicionar linha e coluna de total
     colunas_numericas = tabela_realizado.select_dtypes(include='number').columns
@@ -229,6 +245,8 @@ tabela_realizado_valor = data_filtrado.pivot_table(
     margins_name='Total'
 ).fillna(0)
 
+tabela_realizado_valor.columns = tabela_realizado_valor.columns.map(str)
+
 if not tabela_realizado_valor.empty:
     # Aplicando formatação de milhar
     colunas_numericas_valor = tabela_realizado_valor.select_dtypes(include='number').columns
@@ -253,43 +271,6 @@ else:
 
 st.divider()
 
-# Filtrar apenas categorias principais
-metas_diarias = metas_diarias[metas_diarias['Categoria'].isin(categorias_principais)]
-
-# Tabela de Metas (Quantidade)
-tabela_metas_diarias_qtd = metas_diarias.pivot_table(
-    index=['Categoria'], 
-    columns='Dia', 
-    values='Meta_Diária',
-    aggfunc='sum'
-).fillna(0)
-
-# Tabela de Realizado (Quantidade)
-tabela_realizado_qtd = data_filtrado.pivot_table(
-    index=['Categoria'], 
-    columns='Dia', 
-    values='QTD', 
-    aggfunc='sum'
-).fillna(0)
-
-
-dias_comuns = sorted(set(tabela_metas_diarias_qtd.columns) | set(tabela_realizado_qtd.columns))
-tabela_metas_diarias_qtd = tabela_metas_diarias_qtd.reindex(columns=dias_comuns, fill_value=0)
-tabela_realizado_qtd = tabela_realizado_qtd.reindex(columns=dias_comuns, fill_value=0)
-
-# Calcular Porcentagem de Alcance
-tabela_percentual_alcance = tabela_realizado_qtd / tabela_metas_diarias_qtd * 100
-tabela_percentual_alcance = tabela_percentual_alcance.fillna(0)
-
-# Montar DataFrame Final lado a lado
-tabela_comparativa = pd.DataFrame()
-
-for dia in dias_comuns:
-    tabela_comparativa[(dia, 'Meta')] = tabela_metas_diarias_qtd[dia]
-    tabela_comparativa[(dia, 'Realizado')] = tabela_realizado_qtd[dia]
-    tabela_comparativa[(dia, '%')] = tabela_percentual_alcance[dia]
-
-# Formatar os valores
 def format_milhar_sem_zero(val):
     try:
         if pd.isna(val) or val == 0:
@@ -306,30 +287,85 @@ def format_percentual(val):
     except (ValueError, TypeError):
         return "-"
 
+# Filtrar apenas categorias principais
+metas_diarias = metas_diarias[metas_diarias['Categoria'].isin(categorias_principais)]
+data_filtrado = data_filtrado[data_filtrado['Categoria'].isin(categorias_principais)]
+
+# Função para agrupar dias por blocos
+def agrupar_dias(dia):
+    if 1 <= dia <= 8:
+        return '1 a 8'
+    elif 9 <= dia <= 15:
+        return '9 a 15'
+    elif 16 <= dia <= 23:
+        return '16 a 23'
+    elif 24 <= dia <= 31:
+        return '24 a 31'
+    return 'Outro'
+
+metas_diarias['Bloco_Dias'] = metas_diarias['Dia'].apply(agrupar_dias)
+data_filtrado['Bloco_Dias'] = data_filtrado['Dia'].apply(agrupar_dias)
+
+# Tabela de Metas (Quantidade)
+tabela_metas_diarias_qtd = metas_diarias.pivot_table(
+    index=['Categoria'], 
+    columns='Bloco_Dias', 
+    values='Meta_Diária',
+    aggfunc='sum'
+).fillna(0)
+
+tabela_metas_diarias_qtd.columns = tabela_metas_diarias_qtd.columns.map(str)
+
+# Tabela de Realizado (Quantidade)
+tabela_realizado_qtd = data_filtrado.pivot_table(
+    index=['Categoria'], 
+    columns='Bloco_Dias', 
+    values='QTD', 
+    aggfunc='sum'
+).fillna(0)
+
+# Garantir que os blocos estejam na ordem correta
+dias_comuns = ['1 a 8', '9 a 15', '16 a 23', '24 a 31']
+tabela_metas_diarias_qtd = tabela_metas_diarias_qtd.reindex(columns=dias_comuns, fill_value=0)
+tabela_realizado_qtd = tabela_realizado_qtd.reindex(columns=dias_comuns, fill_value=0)
+
+# Calcular Porcentagem de Alcance
+tabela_percentual_alcance = tabela_realizado_qtd / tabela_metas_diarias_qtd * 100
+tabela_percentual_alcance = tabela_percentual_alcance.fillna(0)
+
+# Montar DataFrame Final lado a lado
+tabela_comparativa = pd.DataFrame()
+
+for bloco in dias_comuns:
+    tabela_comparativa[(bloco, 'Meta')] = tabela_metas_diarias_qtd[bloco]
+    tabela_comparativa[(bloco, 'Rzdo')] = tabela_realizado_qtd[bloco]
+    tabela_comparativa[(bloco, '%')] = tabela_percentual_alcance[bloco]
+
+# Adicionar coluna de totalizador mensal
+tabela_comparativa[('Total', 'Meta')] = tabela_metas_diarias_qtd.sum(axis=1)
+tabela_comparativa[('Total', 'Rzdo')] = tabela_realizado_qtd.sum(axis=1)
+tabela_comparativa[('Total', '%')] = (tabela_comparativa[('Total', 'Rzdo')] / tabela_comparativa[('Total', 'Meta')] * 100).fillna(0)
+
 # Aplicar formatação por tipo de coluna
-for dia in dias_comuns:
-    tabela_comparativa[(dia, 'Meta')] = tabela_comparativa[(dia, 'Meta')].apply(format_milhar_sem_zero)
-    tabela_comparativa[(dia, 'Realizado')] = tabela_comparativa[(dia, 'Realizado')].apply(format_milhar_sem_zero)
-    tabela_comparativa[(dia, '%')] = tabela_comparativa[(dia, '%')].apply(format_percentual)
+for bloco in dias_comuns + ['Total']:
+    tabela_comparativa[(bloco, 'Meta')] = tabela_comparativa[(bloco, 'Meta')].apply(format_milhar_sem_zero)
+    tabela_comparativa[(bloco, 'Rzdo')] = tabela_comparativa[(bloco, 'Rzdo')].apply(format_milhar_sem_zero)
+    tabela_comparativa[(bloco, '%')] = tabela_comparativa[(bloco, '%')].apply(format_percentual)
 
-if not tabela_comparativa.empty:
-    # Melhorar exibição do cabeçalho
-    tabela_comparativa.columns = pd.MultiIndex.from_tuples(
-        [(f"Dia {dia}", nome) for dia, nome in tabela_comparativa.columns]
+# Melhorar exibição do cabeçalho
+tabela_comparativa.columns = pd.MultiIndex.from_tuples(
+    [(f"{bloco}", nome) for bloco, nome in tabela_comparativa.columns]
+)
+
+# Exibir Tabela Final
+st.markdown("<h1 style='color: #5D3A7A; font-size: 32px; text-align: center; margin-top: 20px;'>💷 Metas Diárias x Realizado</h1>", unsafe_allow_html=True)
+
+# Identificar colunas de % Alcance
+subset_percentual = [(f"{bloco}", '%') for bloco in dias_comuns + ['Total']]
+
+st.dataframe(
+    tabela_comparativa.style.map(
+        colorir_percentual_texto,
+        subset=pd.IndexSlice[:, subset_percentual]
     )
-
-    # Exibir Tabela Final
-    st.markdown("<h1 style='color: #5D3A7A; font-size: 32px; text-align: center; margin-top: 20px;'>📊 Metas Diárias x Realizado</h1>", unsafe_allow_html=True)
-
-    # Identificar colunas de % Alcance
-    subset_percentual = [(f"Dia {dia}", '%') for dia in dias_comuns]
-
-    st.dataframe(
-        tabela_comparativa.style.map(
-            colorir_percentual_texto,
-            subset=pd.IndexSlice[:, subset_percentual]
-        )
-    )
-else:
-    st.warning("Nenhum dado disponível para exibir.")
-
+)
